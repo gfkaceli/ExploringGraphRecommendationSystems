@@ -1,35 +1,54 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+from networkx.drawing.layout import bipartite_layout
+from networkx.algorithms import bipartite
+import pandas as pd
+import random
+
+df = pd.read_csv("datasets/encoded/ratings.csv")
+# Sample a subset of the dataset to keep the graph small
+df = df.sample(n=200)
+
+user = df['UID']
+movies = df['MID']
 
 g = nx.Graph()
 
-g.add_node(1)
-g.add_node(2)
-g.add_node(3)
-g.add_nodes_from([4, 5, 6])
+g.add_nodes_from(user, bipartite=0)
+g.add_nodes_from(movies, bipartite=1)
 
-g.add_edge(1, 2)
-g.add_edge(4, 2)
-g.add_edge(1, 6)
-g.add_edge(3, 5)
-g.add_edge(2, 3)
-g.add_edge(5, 1)
-g.add_edge(3, 4)
+# Add edges with ratings as weights
+for _, row in df.iterrows():
+    g.add_edge(row['UID'], row['MID'], weight=row['rating'])
 
-nx.draw(g, with_labels=True, node_color='lightblue', edge_color='gray')
-plt.show()
+selected_users = random.sample(list(df['UID'].unique()), 10)
 
-# Basic analysis
-print("Number of nodes:", g.number_of_nodes())
-print("Number of edges:", g.number_of_edges())
-print("List of all nodes:", list(g.nodes))
-print("List of all edges:", list(g.edges))
-print("Neighbors of node 2:", list(g.neighbors(2)))
+# Select movies rated by these users
+selected_movies = df[df['UID'].isin(selected_users)]['MID'].unique()
 
-# Network metrics
-print("Degree of each node:", dict(g.degree()))
-print("Clustering coefficient of the network:", nx.clustering(g))
+# Create a subgraph with selected users and movies
+subgraph_nodes = list(selected_users) + list(selected_movies)
+h = g.subgraph(subgraph_nodes)
 
+# Position nodes using the bipartite layout
+pos = nx.bipartite_layout(h, selected_users)
+
+# Draw the graph
+plt.figure(figsize=(12, 8))
+# blue corresponds to the user id, green will correspond to the movie id and the number in between is the weight
+nx.draw(h, pos, with_labels=True, node_color=['skyblue' if node in selected_users else 'lightgreen' for node in h],
+        edge_color='gray', font_size=8, node_size=50)
+
+# Draw edge labels to show ratings
+edge_labels = nx.get_edge_attributes(h, 'weight')
+nx.draw_networkx_edge_labels(h, pos, edge_labels=edge_labels, font_size=7)
+
+plt.title("Subgraph of the MovieLens Dataset")
+plt.axis('off')
+plt.savefig("visualization/graph")
+plt.clf()
+
+""" from this we can see the bipartite nature of the graph"""
 
 
 
