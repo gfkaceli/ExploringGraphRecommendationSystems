@@ -29,3 +29,4 @@ llvmlite==0.42.0
 networkx==3.2.1
 torch==2.2.2
 torch_geometric==2.5.2
+scikit-surprise==1.1.3

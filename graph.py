@@ -51,5 +51,11 @@ plt.clf()
 """ from this we can see the bipartite nature of the graph"""
 
 
+def display_graph(G, data_frame):
+    G = nx.Graph()
+    selected_rows = random.sample(data_frame, 10)
+
+
+
 
 
