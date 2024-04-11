@@ -51,7 +51,7 @@ criterion = torch.nn.MSELoss()  # Mean Squared Error Loss
 
 # Training loop
 model.train()
-for epoch in range(120):
+for epoch in range(200):
     optimizer.zero_grad()
     out = model(train_dataset)
     loss = criterion(out, train_dataset.edge_attr)
@@ -61,6 +61,7 @@ for epoch in range(120):
     if epoch % 10 == 0:
         print(f'Epoch {epoch}: Loss {loss.item()}')
 
+torch.save(model.state_dict(), 'models/SAGE_rating_prediction.pth')
 
 # DataLoader for the validation set
 val_loader = DataLoader([val_dataset], batch_size=1)
