@@ -1,7 +1,8 @@
 import torch
-from models.SAGE import SAGERecommendation
+from models.gat import GATRatingPrediction
 from sklearn.model_selection import train_test_split
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
 from torch.optim import Adam
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
@@ -10,23 +11,26 @@ import torch.nn.functional as F
 
 ratings_data = pd.read_csv("datasets/encoded/ratings.csv")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# Create mappings for user IDs and movie IDs to consecutive integers
-
-# Unique nodes
+# Create node mappings
 user_ids = ratings_data['UID'].unique()
 movie_ids = ratings_data['MID'].unique()
+user_mapping = {uid: i for i, uid in enumerate(user_ids)}
+movie_mapping = {mid: i + len(user_ids) for i, mid in enumerate(movie_ids)}
 
-# Node mapping to indices
-user_mapping = {uid: idx for idx, uid in enumerate(user_ids)}
-movie_mapping = {mid: idx + len(user_ids) for idx, mid in enumerate(movie_ids)}
-
-train_data, val_data = train_test_split(ratings_data, test_size=0.2, random_state=42)
-
-# Random node features
+# Initialize node features
 num_users = len(user_ids)
 num_movies = len(movie_ids)
-num_features = 10  # Random choice, can be tuned
+num_features = 10  # Placeholder for feature dimensionality
+
+# Random features (could be replaced with real features if available)
 node_features = torch.randn((num_users + num_movies, num_features), dtype=torch.float)
+
+# Normalize features
+scaler = StandardScaler()
+node_features = torch.tensor(scaler.fit_transform(node_features), dtype=torch.float)
+
+
+train_data, test_data = train_test_split(ratings_data, test_size=0.2, random_state=42)
 
 
 # Create Data objects for training and validation
@@ -41,12 +45,12 @@ def create_pyg_data(data_frame):
 
 
 train_dataset = create_pyg_data(train_data)
-val_dataset = create_pyg_data(val_data)
+val_dataset = create_pyg_data(test_data)
 
 
 # Model initialization
-model = SAGERecommendation(num_features=10, hidden_dim=64)
-optimizer = Adam(model.parameters(), lr=0.005)
+model = GATRatingPrediction(num_features=node_features.size(1), hidden_dim=64)
+optimizer = Adam(model.parameters(), lr=0.01)
 criterion = torch.nn.MSELoss()  # Mean Squared Error Loss
 
 # Training loop
@@ -61,7 +65,7 @@ for epoch in range(200):
     if epoch % 10 == 0:
         print(f'Epoch {epoch}: Loss {loss.item()}')
 
-torch.save(model.state_dict(), 'models/SAGE_rating_prediction.pth')
+torch.save(model.state_dict(), 'models/gat_rating_prediction.pth')
 
 # DataLoader for the validation set
 val_loader = DataLoader([val_dataset], batch_size=1)

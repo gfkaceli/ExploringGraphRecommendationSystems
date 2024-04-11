@@ -59,7 +59,7 @@ def train():
 
 
 # Training loop
-for epoch in range(120):  # Number of epochs
+for epoch in range(200):  # Number of epochs
     loss = train()
     print(f'Epoch {epoch+1}, Loss: {loss:.4f}')
 
