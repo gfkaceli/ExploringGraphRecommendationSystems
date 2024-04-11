@@ -40,7 +40,7 @@ users['age'] = users['bin']
 users = users.drop('bin', axis=1)
 users = convert_categorical(users, 'age')
 users = users.drop('zip', axis=1)
-movies = movies.drop(['video_release_date', 'IMDb_URL'], axis=1)
+movies = movies.drop(['video_release_date', 'IMDb_URL', 'title', 'release_date'], axis=1) # drop these axes
 ratings['datetime'] = pd.to_datetime(ratings['timestamp'], unit='s')
 ratings['timestamp'] = ratings['datetime']
 ratings = ratings.drop('datetime', axis=1)
@@ -84,7 +84,7 @@ for alpha_coef in alpha_coefs:
     nd = nx.average_neighbor_degree(G, weight='weight')
     users['AND'] = users['UID'].map(nd)
     users['AND'] /= float(users['AND'].max())
-    X_train = users[users.columns[1:]]
+    X_train = users[users.columns[0:]]
     X_train.fillna(0, inplace=True)
     X_train.to_csv(f"datasets/encoded/{alpha_coef}users.csv", index=False)
 
