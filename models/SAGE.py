@@ -13,8 +13,7 @@ class SAGERecommendation(torch.nn.Module):
         # Add a fully connected layer for rating prediction
         self.fc = torch.nn.Linear(hidden_dim * 2, 1)  # hidden_dim * 2 to account for concatenated embeddings
 
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
+    def forward(self, x, edge_index):
 
         # Forward pass through GraphSAGE layers
         x = F.relu(self.conv1(x, edge_index))
@@ -22,8 +21,6 @@ class SAGERecommendation(torch.nn.Module):
         x = F.relu(self.conv3(x, edge_index))
 
         # Using edge_index to pick relevant node features for ratings prediction
-        user_features = x[edge_index[0]]
-        movie_features = x[edge_index[1]]
-        combined_features = torch.cat([user_features, movie_features], dim=1)
+        edge_features = torch.cat((x[edge_index[0]], x[edge_index[1]]), dim=1)
 
-        return self.fc(combined_features)
+        return self.fc(edge_features).squeeze()

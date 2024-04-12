@@ -1,81 +1,79 @@
-from models.gcn import GCNRatingPrediction
-from sklearn.model_selection import train_test_split
-import pandas as pd
+import numpy as np
 import torch
-from torch.optim import Adam
-from sklearn.preprocessing import LabelEncoder
+import pandas as pd
+from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data
+from torch.optim import Adam
 import torch.nn.functional as F
+from models.gcn import GCNRatingPrediction  # Ensure this path is correct
 
-ratings_df = pd.read_csv("datasets/encoded/ratings.csv")
+# Load datasets
+users_df = pd.read_csv('datasets/encoded/0.01users.csv')
+movies_df = pd.read_csv('datasets/encoded/movies.csv')
+ratings_df = pd.read_csv('datasets/encoded/ratings.csv')
 
-# Encode user IDs and movie IDs to integer indices
-user_encoder = LabelEncoder()
-movie_encoder = LabelEncoder()
+# Prepare user and movie mappings
+user_ids = users_df['UID'].unique()
+movie_ids = movies_df['MID'].unique()
+user_mapping = {user_id: i for i, user_id in enumerate(user_ids)}
+movie_mapping = {movie_id: i + len(user_ids) for i, movie_id in enumerate(movie_ids)}
 
-ratings_df['UID'] = user_encoder.fit_transform(ratings_df['UID'])
-ratings_df['MID'] = movie_encoder.fit_transform(ratings_df['MID']) + ratings_df['UID'].max() + 1
+# Prepare edges and edge attributes
+edges = torch.tensor([(user_mapping[row['UID']], movie_mapping[row['MID']]) for index, row in ratings_df.iterrows()], dtype=torch.long).t().contiguous()
+edge_attrs = torch.tensor(ratings_df['rating'].values, dtype=torch.float)
 
-# Prepare the graph data
-num_users = ratings_df['UID'].max() + 1
-num_movies = ratings_df['MID'].max() + 1
-num_nodes = num_users + num_movies
+# Node features
+user_features = torch.tensor(users_df.drop('UID', axis=1).values, dtype=torch.float)
+movie_features = torch.tensor(movies_df.drop('MID', axis=1).values, dtype=torch.float)
+if user_features.shape[1] != movie_features.shape[1]:
+    # Pad the smaller one
+    padding = torch.zeros(abs(user_features.shape[1] - movie_features.shape[1]))
+    if user_features.shape[1] < movie_features.shape[1]:
+        user_features = torch.cat([user_features, padding.expand(user_features.size(0), -1)], dim=1)
+    else:
+        movie_features = torch.cat([movie_features, padding.expand(movie_features.size(0), -1)], dim=1)
+node_features = torch.cat([user_features, movie_features], dim=0)
 
-# Dummy node features
-x = torch.eye(num_nodes, num_nodes)
+# Data split
+train_df, test_df = train_test_split(ratings_df, test_size=0.2, random_state=42)
+train_edges = torch.tensor([(user_mapping[row['UID']], movie_mapping[row['MID']]) for index, row in train_df.iterrows()],
+                           dtype=torch.long).t().contiguous()
+train_edge_attrs = torch.tensor(train_df['rating'].values, dtype=torch.float)
+test_edges = torch.tensor([(user_mapping[row['UID']], movie_mapping[row['MID']]) for index, row in test_df.iterrows()],
+                          dtype=torch.long).t().contiguous()
+test_edge_attrs = torch.tensor(test_df['rating'].values, dtype=torch.float)
 
-# Edge index and weight
-edge_index = torch.tensor([ratings_df['UID'], ratings_df['MID'] + num_users], dtype=torch.long)
-edge_weight = torch.tensor(ratings_df['rating'], dtype=torch.float)
+# Graph data
+train_data = Data(x=node_features, edge_index=train_edges, edge_attr=train_edge_attrs)
+test_data = Data(x=node_features, edge_index=test_edges, edge_attr=test_edge_attrs)
 
-data = Data(x=x, edge_index=edge_index)
-
-# Model, optimizer, and loss function
-model = GCNRatingPrediction(num_features=num_nodes, hidden_dim=64)
+# Model and optimization
+model = GCNRatingPrediction(num_features=node_features.shape[1], hidden_dim=128)
 optimizer = Adam(model.parameters(), lr=0.01)
 criterion = torch.nn.MSELoss()
 
-# Train/test split
-train_df, test_df = train_test_split(ratings_df, test_size=0.2)
-
-
-def train():
-    model.train()
+# Training loop
+model.train()
+for epoch in range(200):
     optimizer.zero_grad()
-
-    # Indices for users and movies in the training set
-    user_indices = torch.tensor(train_df['UID'], dtype=torch.long)
-    movie_indices = torch.tensor(train_df['MID'] + num_users, dtype=torch.long)  # Offset movie indices
-
-    # Actual ratings
-    ratings = torch.tensor(train_df['rating'].values, dtype=torch.float)
-
-    # Forward pass and loss calculation
-    ratings_pred = model(data, user_indices, movie_indices).squeeze()
-    loss = criterion(ratings_pred, ratings)
+    out = model(train_data.x, train_data.edge_index)
+    loss = criterion(out, train_data.edge_attr)  # Ensure dimensions match
     loss.backward()
     optimizer.step()
-    return loss.item()
+    if epoch % 10 == 0:
+        print(f'Epoch {epoch}: Loss {loss.item()}')
 
-
-# Training loop
-for epoch in range(200):  # Number of epochs
-    loss = train()
-    print(f'Epoch {epoch+1}, Loss: {loss:.4f}')
-
+# Save the model
 torch.save(model.state_dict(), 'models/gcn_rating_prediction.pth')
 
-model.eval()  # Set the model to evaluation mode
+# Evaluate the model
+model.eval()
+with torch.no_grad():
+    out = model(test_data.x, test_data.edge_index)
+    loss = criterion(out.squeeze(), test_data.edge_attr)
+    print(f'Test Loss: {loss.item()}')
 
-# Assuming test_user_indices and test_movie_indices contain indices for test data
-with torch.no_grad():  # No need to track gradients for testing
-    test_user_indices = torch.tensor(test_df['UID'].values, dtype=torch.long)
-    test_movie_indices = torch.tensor(test_df['MID'].values + num_users, dtype=torch.long)  # Offset movie indices
-    predicted_ratings = model(data, test_user_indices, test_movie_indices).squeeze()
-
-# You can then compare these predicted ratings with the actual ratings from your test set
-actual_ratings = torch.tensor(test_df['rating'].values, dtype=torch.float)
-
-# Calculate some metric to evaluate performance, e.g., Mean Squared Error
-mse = F.mse_loss(predicted_ratings, actual_ratings)
-print(f'Test MSE: {mse.item()}')
+    # Calculate MSE and RMSE
+    mse = F.mse_loss(out.squeeze(), test_data.edge_attr, reduction='mean')
+    rmse = torch.sqrt(mse)
+    print(f'MSE: {mse.item()}, RMSE: {rmse.item()}')

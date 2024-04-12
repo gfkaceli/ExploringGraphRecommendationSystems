@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
-from torch_geometric.utils import negative_sampling
 from torch_geometric.data import Data
 
 
@@ -13,20 +12,14 @@ class GCNRatingPrediction(torch.nn.Module):
         # Add a fully connected layer for rating prediction
         self.fc = torch.nn.Linear(hidden_dim * 2, 1)  # hidden_dim * 2 to account for concatenated embeddings
 
-    def forward(self, data, user_indices, movie_indices):
-        x, edge_index = data.x, data.edge_index
-
-        x = self.conv1(x, edge_index)
-        x = F.relu(x)
+    def forward(self, x, edge_index):
+        x = F.dropout(x, p=0.6, training=self.training)
+        x = F.elu(self.conv1(x, edge_index))
+        x = F.dropout(x, p=0.6, training=self.training)
         x = self.conv2(x, edge_index)
+        # Use edge_index to select node features for source and destination
+        edge_features = torch.cat((x[edge_index[0]], x[edge_index[1]]), dim=1)
 
-        # Gather specific user and movie embeddings
-        user_embeddings = x[user_indices]
-        movie_embeddings = x[movie_indices]
-
-        # Combine user and movie embeddings (e.g., concatenation)
-        combined_embeddings = torch.cat((user_embeddings, movie_embeddings), dim=1)
-
-        # Predict ratings
-        ratings_pred = self.fc(combined_embeddings)
-        return ratings_pred
+        # Predict the rating from edge features
+        ratings = self.fc(edge_features)
+        return ratings.squeeze()  # Remove extra dimensions
