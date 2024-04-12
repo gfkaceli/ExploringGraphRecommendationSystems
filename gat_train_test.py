@@ -48,13 +48,13 @@ train_data = Data(x=node_features, edge_index=train_edges, edge_attr=train_edge_
 test_data = Data(x=node_features, edge_index=test_edges, edge_attr=test_edge_attrs)
 
 # Model and optimization
-model = GATRatingPrediction(num_features=node_features.shape[1], hidden_dim=128)
-optimizer = Adam(model.parameters(), lr=0.05)
+model = GATRatingPrediction(num_features=node_features.shape[1], hidden_dim=64)
+optimizer = Adam(model.parameters(), lr=0.01)
 criterion = torch.nn.MSELoss()
 
 # Training loop
 model.train()
-for epoch in range(200):
+for epoch in range(500):
     optimizer.zero_grad()
     out = model(train_data.x, train_data.edge_index)
     loss = criterion(out.squeeze(), train_data.edge_attr)  # Ensure dimensions match

@@ -55,12 +55,12 @@ test_data = Data(x=node_features, edge_index=test_edges, edge_attr=test_edge_att
 
 # Model initialization
 model = SAGERecommendation(num_features=node_features.shape[1], hidden_dim=64)
-optimizer = Adam(model.parameters(), lr=0.005)
+optimizer = Adam(model.parameters(), lr=0.01)
 criterion = torch.nn.MSELoss()  # Mean Squared Error Loss
 
 # Training loop
 model.train()
-for epoch in range(300):
+for epoch in range(500):
     optimizer.zero_grad()
     out = model(train_data.x, train_data.edge_index)
     loss = criterion(out, train_data.edge_attr)

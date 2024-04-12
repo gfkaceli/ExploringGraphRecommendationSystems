@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -12,6 +13,9 @@ users_df = pd.read_csv('datasets/encoded/0.01users.csv')
 movies_df = pd.read_csv('datasets/encoded/movies.csv')
 ratings_df = pd.read_csv('datasets/encoded/ratings.csv')
 
+user_cnt = ratings_df['UID'].nunique()
+movie_cnt = ratings_df['MID'].nunique()
+
 # Prepare user and movie mappings
 user_ids = users_df['UID'].unique()
 movie_ids = movies_df['MID'].unique()
@@ -19,7 +23,8 @@ user_mapping = {user_id: i for i, user_id in enumerate(user_ids)}
 movie_mapping = {movie_id: i + len(user_ids) for i, movie_id in enumerate(movie_ids)}
 
 # Prepare edges and edge attributes
-edges = torch.tensor([(user_mapping[row['UID']], movie_mapping[row['MID']]) for index, row in ratings_df.iterrows()], dtype=torch.long).t().contiguous()
+edges = torch.tensor([(user_mapping[row['UID']], movie_mapping[row['MID']]) for index, row in ratings_df.iterrows()],
+                     dtype=torch.long).t().contiguous()
 edge_attrs = torch.tensor(ratings_df['rating'].values, dtype=torch.float)
 
 # Node features
@@ -48,20 +53,47 @@ train_data = Data(x=node_features, edge_index=train_edges, edge_attr=train_edge_
 test_data = Data(x=node_features, edge_index=test_edges, edge_attr=test_edge_attrs)
 
 # Model and optimization
-model = GCNRatingPrediction(num_features=node_features.shape[1], hidden_dim=128)
-optimizer = Adam(model.parameters(), lr=0.01)
+model = GCNRatingPrediction(num_features=node_features.shape[1], hidden_dim=64)
+optimizer = Adam(model.parameters(), lr=0.001)
 criterion = torch.nn.MSELoss()
 
 # Training loop
+losses = []
 model.train()
-for epoch in range(200):
+for epoch in range(500):
     optimizer.zero_grad()
     out = model(train_data.x, train_data.edge_index)
     loss = criterion(out, train_data.edge_attr)  # Ensure dimensions match
     loss.backward()
+    # Record the loss
+    losses.append(loss.item())
     optimizer.step()
     if epoch % 10 == 0:
         print(f'Epoch {epoch}: Loss {loss.item()}')
+
+
+def smooth_curve(points, factor=0.9):
+    smoothed_points = []
+    for point in points:
+        if smoothed_points:
+            previous = smoothed_points[-1]
+            smoothed_points.append(previous * factor + point * (1 - factor))
+        else:
+            smoothed_points.append(point)
+    return smoothed_points
+
+
+# Smooth the losses
+smoothed_losses = smooth_curve(losses)
+
+# Plot the smoothed curve
+plt.figure(figsize=(10, 5))
+plt.plot(smoothed_losses, label='Smoothed Training Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Smoothed Training Loss Curve')
+plt.legend()
+plt.show()
 
 # Save the model
 torch.save(model.state_dict(), 'models/gcn_rating_prediction.pth')

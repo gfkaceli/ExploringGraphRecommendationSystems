@@ -22,4 +22,4 @@ class GCNRatingPrediction(torch.nn.Module):
 
         # Predict the rating from edge features
         ratings = self.fc(edge_features)
-        return ratings.squeeze()  # Remove extra dimensions
+        return ratings.squeeze()  # Remove extra dimensions'
