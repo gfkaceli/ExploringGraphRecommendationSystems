@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data
 from torch.optim import Adam
 import torch.nn.functional as F
+from sklearn.metrics import precision_score, recall_score
 from models.gat import GATRatingPrediction  # Ensure this path is correct
 
 # Load datasets
@@ -57,7 +58,7 @@ model.train()
 for epoch in range(500):
     optimizer.zero_grad()
     out = model(train_data.x, train_data.edge_index)
-    loss = criterion(out.squeeze(), train_data.edge_attr)  # Ensure dimensions match
+    loss = criterion(out, train_data.edge_attr)  # Ensure dimensions match
     loss.backward()
     optimizer.step()
     if epoch % 10 == 0:
@@ -70,10 +71,23 @@ torch.save(model.state_dict(), 'models/gat_rating_prediction.pth')
 model.eval()
 with torch.no_grad():
     out = model(test_data.x, test_data.edge_index)
-    loss = criterion(out.squeeze(), test_data.edge_attr)
+    loss = criterion(out, test_data.edge_attr)
     print(f'Test Loss: {loss.item()}')
 
     # Calculate MSE and RMSE
-    mse = F.mse_loss(out.squeeze(), test_data.edge_attr, reduction='mean')
+    mse = F.mse_loss(out, test_data.edge_attr)
     rmse = torch.sqrt(mse)
     print(f'MSE: {mse.item()}, RMSE: {rmse.item()}')
+
+    # Convert predictions to binary
+    predicted_labels = (out > 3.5).float()  # Assuming 3.5 as the threshold
+
+    # True labels are your actual ratings turned into binary (1 if rating > 3.5 else 0)
+    true_labels = (test_data.edge_attr > 3.5).float()
+
+    # Calculate precision and recall
+    precision = precision_score(true_labels, predicted_labels)
+    recall = recall_score(true_labels, predicted_labels)
+
+    print(f"Precision: {precision}")
+    print(f"Recall: {recall}")

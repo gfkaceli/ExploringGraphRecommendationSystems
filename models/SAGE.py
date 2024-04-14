@@ -22,5 +22,7 @@ class SAGERecommendation(torch.nn.Module):
 
         # Using edge_index to pick relevant node features for ratings prediction
         edge_features = torch.cat((x[edge_index[0]], x[edge_index[1]]), dim=1)
+        ratings = self.fc(edge_features).squeeze()
+        ratings = torch.sigmoid(ratings) * 4 + 1
 
-        return self.fc(edge_features).squeeze()
+        return ratings

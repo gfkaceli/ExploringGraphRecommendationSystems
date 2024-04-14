@@ -6,7 +6,7 @@ from torch.optim import Adam
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
 import torch.nn.functional as F
-
+from sklearn.metrics import precision_score, recall_score
 
 ratings_df = pd.read_csv("datasets/encoded/ratings.csv")
 user_df = pd.read_csv("datasets/encoded/0.01users.csv")
@@ -55,7 +55,7 @@ test_data = Data(x=node_features, edge_index=test_edges, edge_attr=test_edge_att
 
 # Model initialization
 model = SAGERecommendation(num_features=node_features.shape[1], hidden_dim=64)
-optimizer = Adam(model.parameters(), lr=0.01)
+optimizer = Adam(model.parameters(), lr=0.005)
 criterion = torch.nn.MSELoss()  # Mean Squared Error Loss
 
 # Training loop
@@ -87,3 +87,16 @@ with torch.no_grad():
         mse = F.mse_loss(out, data.edge_attr, reduction='mean')
         rmse = torch.sqrt(mse)
         print(f'MSE: {mse.item()}, RMSE: {rmse.item()}')
+
+        # Convert predictions to binary
+        predicted_labels = (out > 3.5).float()  # Assuming 3.5 as the threshold
+
+        # True labels are your actual ratings turned into binary (1 if rating > 3.5 else 0)
+        true_labels = (test_data.edge_attr > 3.5).float()
+
+        # Calculate precision and recall
+        precision = precision_score(true_labels, predicted_labels)
+        recall = recall_score(true_labels, predicted_labels)
+
+        print(f"Precision: {precision}")
+        print(f"Recall: {recall}")

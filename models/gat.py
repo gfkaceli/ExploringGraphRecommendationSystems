@@ -24,4 +24,5 @@ class GATRatingPrediction(torch.nn.Module):
 
         # Predict the rating from edge features
         ratings = self.predictor(edge_features)
+        ratings = torch.sigmoid(ratings) * 4 + 1
         return ratings.squeeze()  # Remove extra dimensions
