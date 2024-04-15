@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -7,6 +6,8 @@ from torch.optim import Adam
 import torch.nn.functional as F
 from sklearn.metrics import precision_score, recall_score
 from models.gat import GATRatingPrediction  # Ensure this path is correct
+import matplotlib.pyplot as plt
+from log_to_csv import log_metrics_to_csv
 
 # Load datasets
 users_df = pd.read_csv('datasets/encoded/0.01users.csv')
@@ -50,20 +51,46 @@ test_data = Data(x=node_features, edge_index=test_edges, edge_attr=test_edge_att
 
 # Model and optimization
 model = GATRatingPrediction(num_features=node_features.shape[1], hidden_dim=64)
-optimizer = Adam(model.parameters(), lr=0.01)
+optimizer = Adam(model.parameters(), lr=0.005)
 criterion = torch.nn.MSELoss()
 
 # Training loop
 model.train()
-for epoch in range(500):
+losses = []
+for epoch in range(350):
     optimizer.zero_grad()
     out = model(train_data.x, train_data.edge_index)
     loss = criterion(out, train_data.edge_attr)  # Ensure dimensions match
     loss.backward()
+    losses.append(loss.item())
     optimizer.step()
     if epoch % 10 == 0:
         print(f'Epoch {epoch}: Loss {loss.item()}')
 
+
+def smooth_curve(points, factor=0.9):
+    smoothed_points = []
+    for point in points:
+        if smoothed_points:
+            previous = smoothed_points[-1]
+            smoothed_points.append(previous * factor + point * (1 - factor))
+        else:
+            smoothed_points.append(point)
+    return smoothed_points
+
+
+# Smooth the losses
+smoothed_losses = smooth_curve(losses)
+
+# Plot the smoothed curve
+plt.figure(figsize=(10, 5))
+plt.plot(smoothed_losses, label='Smoothed Training Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('GAT Training Loss Curve')
+plt.legend()
+plt.savefig("metrics/GAT_train_loss")
+plt.clf()
 # Save the model
 torch.save(model.state_dict(), 'models/gat_rating_prediction.pth')
 
@@ -72,7 +99,8 @@ model.eval()
 with torch.no_grad():
     out = model(test_data.x, test_data.edge_index)
     loss = criterion(out, test_data.edge_attr)
-    print(f'Test Loss: {loss.item()}')
+    test_loss = loss.item()
+    print(f'Test Loss: {test_loss}')
 
     # Calculate MSE and RMSE
     mse = F.mse_loss(out, test_data.edge_attr)
@@ -80,10 +108,10 @@ with torch.no_grad():
     print(f'MSE: {mse.item()}, RMSE: {rmse.item()}')
 
     # Convert predictions to binary
-    predicted_labels = (out > 3.5).float()  # Assuming 3.5 as the threshold
+    predicted_labels = (out > 3.0).float()  # Assuming 3.0 as the threshold
 
-    # True labels are your actual ratings turned into binary (1 if rating > 3.5 else 0)
-    true_labels = (test_data.edge_attr > 3.5).float()
+    # True labels are your actual ratings turned into binary (1 if rating > 3.0 else 0)
+    true_labels = (test_data.edge_attr > 3.0).float()
 
     # Calculate precision and recall
     precision = precision_score(true_labels, predicted_labels)
@@ -91,3 +119,8 @@ with torch.no_grad():
 
     print(f"Precision: {precision}")
     print(f"Recall: {recall}")
+
+metrics = {"Precision": precision, "Recall": recall, "Test Loss": test_loss, "MSE": mse.item(), "RMSE"
+           : rmse.item()}
+
+log_metrics_to_csv("metrics/gat_train_metric.csv", metrics)

@@ -6,7 +6,9 @@ from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data
 from torch.optim import Adam
 import torch.nn.functional as F
+from sklearn.metrics import precision_score, recall_score
 from models.gcn import GCNRatingPrediction  # Ensure this path is correct
+from log_to_csv import log_metrics_to_csv
 
 # Load datasets
 users_df = pd.read_csv('datasets/encoded/0.01users.csv')
@@ -54,13 +56,13 @@ test_data = Data(x=node_features, edge_index=test_edges, edge_attr=test_edge_att
 
 # Model and optimization
 model = GCNRatingPrediction(num_features=node_features.shape[1], hidden_dim=64)
-optimizer = Adam(model.parameters(), lr=0.001)
+optimizer = Adam(model.parameters(), lr=0.005)
 criterion = torch.nn.MSELoss()
 
 # Training loop
 losses = []
 model.train()
-for epoch in range(500):
+for epoch in range(350):
     optimizer.zero_grad()
     out = model(train_data.x, train_data.edge_index)
     loss = criterion(out, train_data.edge_attr)  # Ensure dimensions match
@@ -91,9 +93,10 @@ plt.figure(figsize=(10, 5))
 plt.plot(smoothed_losses, label='Smoothed Training Loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
-plt.title('Smoothed Training Loss Curve')
+plt.title('GCN Training Loss Curve')
 plt.legend()
-plt.show()
+plt.savefig("metrics/gcn_train_loss")
+plt.clf()
 
 # Save the model
 torch.save(model.state_dict(), 'models/gcn_rating_prediction.pth')
@@ -102,10 +105,29 @@ torch.save(model.state_dict(), 'models/gcn_rating_prediction.pth')
 model.eval()
 with torch.no_grad():
     out = model(test_data.x, test_data.edge_index)
-    loss = criterion(out.squeeze(), test_data.edge_attr)
-    print(f'Test Loss: {loss.item()}')
+    loss = criterion(out, test_data.edge_attr)
+    test_loss = loss.item()
+    print(f'Test Loss: {test_loss}')
 
     # Calculate MSE and RMSE
-    mse = F.mse_loss(out.squeeze(), test_data.edge_attr, reduction='mean')
+    mse = F.mse_loss(out, test_data.edge_attr, reduction='mean')
     rmse = torch.sqrt(mse)
     print(f'MSE: {mse.item()}, RMSE: {rmse.item()}')
+
+    # Convert predictions to binary
+    predicted_labels = (out > 3.0).float()  # Assuming 3.0 as the threshold
+
+    # True labels are your actual ratings turned into binary (1 if rating > 3.0 else 0)
+    true_labels = (test_data.edge_attr > 3.0).float()
+
+    # Calculate precision and recall
+    precision = precision_score(true_labels, predicted_labels)
+    recall = recall_score(true_labels, predicted_labels)
+
+    print(f"Precision: {precision}")
+    print(f"Recall: {recall}")
+
+metrics = {"Precision": precision, "Recall": recall, "Test Loss": test_loss, "MSE": mse.item(), "RMSE"
+           : rmse.item()}
+
+log_metrics_to_csv("metrics/GCN_train_metric.csv", metrics)

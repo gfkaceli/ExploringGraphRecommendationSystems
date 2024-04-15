@@ -7,6 +7,8 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
 import torch.nn.functional as F
 from sklearn.metrics import precision_score, recall_score
+import matplotlib.pyplot as plt
+from log_to_csv import log_metrics_to_csv
 
 ratings_df = pd.read_csv("datasets/encoded/ratings.csv")
 user_df = pd.read_csv("datasets/encoded/0.01users.csv")
@@ -59,16 +61,43 @@ optimizer = Adam(model.parameters(), lr=0.005)
 criterion = torch.nn.MSELoss()  # Mean Squared Error Loss
 
 # Training loop
+losses = []
 model.train()
-for epoch in range(500):
+for epoch in range(350):
     optimizer.zero_grad()
     out = model(train_data.x, train_data.edge_index)
     loss = criterion(out, train_data.edge_attr)
     loss.backward()
+    losses.append(loss.item())
     optimizer.step()
 
     if epoch % 10 == 0:
         print(f'Epoch {epoch}: Loss {loss.item()}')
+
+
+def smooth_curve(points, factor=0.9):
+    smoothed_points = []
+    for point in points:
+        if smoothed_points:
+            previous = smoothed_points[-1]
+            smoothed_points.append(previous * factor + point * (1 - factor))
+        else:
+            smoothed_points.append(point)
+    return smoothed_points
+
+
+# Smooth the losses
+smoothed_losses = smooth_curve(losses)
+
+# Plot the smoothed curve
+plt.figure(figsize=(10, 5))
+plt.plot(smoothed_losses, label='Smoothed Training Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('SAGE Training Loss Curve')
+plt.legend()
+plt.savefig("metrics/SAGE_train_loss")
+plt.clf()
 
 torch.save(model.state_dict(), 'models/SAGE_rating_prediction.pth')
 
@@ -81,7 +110,8 @@ with torch.no_grad():
     for data in val_loader:
         out = model(data.x, data.edge_index)
         loss = criterion(out, data.edge_attr)
-        print(f'Validation Loss: {loss.item()}')
+        test_loss = loss.item()
+        print(f'Validation Loss: {test_loss}')
 
         # Calculate MSE and RMSE
         mse = F.mse_loss(out, data.edge_attr, reduction='mean')
@@ -89,10 +119,10 @@ with torch.no_grad():
         print(f'MSE: {mse.item()}, RMSE: {rmse.item()}')
 
         # Convert predictions to binary
-        predicted_labels = (out > 3.5).float()  # Assuming 3.5 as the threshold
+        predicted_labels = (out > 3.0).float()  # Assuming 3.0 as the threshold
 
-        # True labels are your actual ratings turned into binary (1 if rating > 3.5 else 0)
-        true_labels = (test_data.edge_attr > 3.5).float()
+        # True labels are your actual ratings turned into binary (1 if rating > 3.0 else 0)
+        true_labels = (test_data.edge_attr > 3.0).float()
 
         # Calculate precision and recall
         precision = precision_score(true_labels, predicted_labels)
@@ -100,3 +130,8 @@ with torch.no_grad():
 
         print(f"Precision: {precision}")
         print(f"Recall: {recall}")
+
+metrics = {"Precision": precision, "Recall": recall, "Test Loss": test_loss, "MSE": mse.item(), "RMSE"
+           : rmse.item()}
+
+log_metrics_to_csv("metrics/SAGE_train_metric.csv", metrics)
