@@ -1,6 +1,8 @@
 # ExploringGraphRecommendationSystems
 COMP4740_FinalProject
-Members = George Kaceli and Noah Adams
+
+Members are George Kaceli and Noah Adams
+
 In this project we will be exploring using graphs from item recommendation with an application to movie 
 recommendation using the MovieLens100K dataset, we will utilise Graph Neural Networks, such as Graph Convolution
 Networks GCNs, Graph sample and aggregate GraphSAGE, and Graph Attention Networks GATs
