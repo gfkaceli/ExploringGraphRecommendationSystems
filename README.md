@@ -11,8 +11,8 @@ Networks GCNs, Graph sample and aggregate GraphSAGE, and Graph Attention Network
 
 ### Directories
 - **`models/`**: Contains definitions for various graph-based neural network models.
-- **`datasets/`**: Scripts and utilities for managing and preprocessing the dataset used in the models.
-- **`visualization/`**: Tools and scripts for visualizing data insights and model performance.
+- **`datasets/`**: utilities for managing and preprocessing the dataset used in the models.
+- **`visualization/`**: Tools for visualizing data insights and model performance.
 - **`metrics/`**: Utilities for calculating and logging performance metrics like precision, recall, and RMSE.
 
 ### Key Files
