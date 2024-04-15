@@ -50,7 +50,7 @@ for Windows:
 # Install the necessary dependencies
 `pip install -r requirements.txt`
 
-# Usage
+## Usage
 
 # To train and test the GCN model
 `python gcn_train_test.py`
@@ -63,7 +63,9 @@ for Windows:
 
 ## Table of Contents for document
 **0.** Abstract
+
 **I.** Introduction
+
 **II.** Literature Review 
 
     a. Graph Convolution Networks
