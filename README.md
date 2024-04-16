@@ -97,6 +97,7 @@ for Windows:
 **VII.** References
 
 **VIII.** Appendix
+**IX.** Group Member Participation
 
 ## more notes 
 **Group Members.** George Kaceli and Noah Adams 
